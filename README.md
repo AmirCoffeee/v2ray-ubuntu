@@ -14,7 +14,7 @@ Paste a `vless://`, `vmess://`, or `ss://` link, hit Connect — done.
 ## Install (one line)
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/AmirCoffeee/AmirCoffeee-v2ray-ubuntu/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/AmirCoffeee/v2ray-ubuntu/main/install.sh)
 ```
 
 The script will:
@@ -64,8 +64,8 @@ v2ray-ubuntu open     # open http://localhost:8080 in browser
 ## Build from source
 
 ```bash
-git clone https://github.com/AmirCoffeee/AmirCoffeee-v2ray-ubuntu.git
-cd AmirCoffeee-v2ray-ubuntu
+git clone https://github.com/AmirCoffeee/v2ray-ubuntu.git
+cd v2ray-ubuntu
 mvn clean package -DskipTests
 java -jar target/v2ray-ubuntu-1.0.0.jar
 ```

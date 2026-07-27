@@ -7,7 +7,7 @@ set -e
 #  One-line: bash <(curl -fsSL https://raw.githubusercontent.com/AmirCoffeee/AmirCoffeee-v2ray-ubuntu/main/install.sh)
 # ─────────────────────────────────────────────────────────────────────────────
 
-REPO="AmirCoffeee/AmirCoffeee-v2ray-ubuntu"
+REPO="AmirCoffeee/v2ray-ubuntu"
 VERSION="1.0.0"
 JAR_URL="https://github.com/${REPO}/releases/download/v${VERSION}/v2ray-ubuntu-${VERSION}.jar"
 INSTALL_DIR="/opt/v2ray-ubuntu"
