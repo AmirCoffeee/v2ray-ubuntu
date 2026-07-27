@@ -14,7 +14,7 @@ Paste a `vless://`, `vmess://`, or `ss://` link, hit Connect — done.
 ## Install (one line)
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/AmirCoffeee/v2ray-ubuntu/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/AmirCoffeee/v2ray-ubuntu/master/install.sh)
 ```
 
 The script will:
