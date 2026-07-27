@@ -14,9 +14,9 @@
 
     <groupId>com.xraymanager</groupId>
     <artifactId>v2ray-ubuntu</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <name>v2ray-ubuntu</name>
-    <description>Web-based Xray/V2Ray manager for Linux</description>
+    <description>Xray/V2Ray manager — VPN, Proxy, and Per-App Proxy modes</description>
     <packaging>jar</packaging>
 
     <properties>
@@ -49,6 +49,9 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.xraymanager.XrayManagerApplication</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>

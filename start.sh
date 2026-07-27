@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-JAR="target/v2ray-ubuntu-1.0.0.jar"
+JAR="target/v2ray-ubuntu-1.0.1.jar"
 INSTALL_DIR="$HOME/.local/bin"
 XRAY_BIN="$INSTALL_DIR/xray"
 

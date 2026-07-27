@@ -1,728 +1,613 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xray Manager</title>
-    <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xray Manager</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--border:#30363d;
+  --accent:#7c6ff7;--accent-h:#6a5de0;
+  --green:#3fb950;--red:#f85149;--yellow:#d29922;
+  --text:#e6edf3;--muted:#8b949e;--radius:10px;
+}
+body{background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:14px;min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;padding:24px 16px}
+.app{width:100%;max-width:700px;display:flex;flex-direction:column;gap:16px}
 
-        :root {
-            --bg:        #0d1117;
-            --surface:   #161b22;
-            --border:    #30363d;
-            --accent:    #7c6ff7;
-            --accent-h:  #6a5de0;
-            --green:     #3fb950;
-            --red:       #f85149;
-            --yellow:    #d29922;
-            --text:      #e6edf3;
-            --muted:     #8b949e;
-            --radius:    10px;
-        }
+/* ── Header ── */
+.header{display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:20px;font-weight:700;letter-spacing:-.3px}
+.header h1 span{color:var(--accent)}
+.conn-badge{display:flex;align-items:center;gap:6px;padding:6px 14px;
+  border-radius:20px;font-size:13px;font-weight:600;
+  background:#1c1c1c;border:1px solid var(--border);transition:all .3s}
+.conn-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);transition:background .3s}
+.conn-badge.on .dot{background:var(--green);box-shadow:0 0 6px var(--green)}
+.conn-badge.on{border-color:#238636;color:var(--green)}
+.conn-badge.off{color:var(--muted)}
 
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-size: 14px;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 24px 16px;
-        }
+/* ── Card ── */
+.card{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px}
+.card-title{font-size:12px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.6px;color:var(--muted);margin-bottom:12px}
 
-        .app { width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 16px; }
+/* ── Add row ── */
+.add-row{display:flex;gap:8px}
+.add-row input{flex:1;background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text);padding:10px 14px;
+  font-size:14px;outline:none;transition:border-color .2s}
+.add-row input:focus{border-color:var(--accent)}
+.add-row input::placeholder{color:var(--muted)}
+.paste-hint{margin-top:8px;font-size:12px;color:var(--muted);
+  display:flex;align-items:center;gap:6px}
+.kbd{background:#21262d;border:1px solid var(--border);border-radius:4px;
+  padding:1px 6px;font-family:monospace;font-size:11px;color:var(--text)}
 
-        /* ── Header ── */
-        .header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
-        .header h1 span { color: var(--accent); }
+/* ── Buttons ── */
+.btn{padding:10px 18px;border:none;border-radius:var(--radius);
+  font-size:14px;font-weight:600;cursor:pointer;
+  transition:opacity .15s,transform .1s;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-h)}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--text)}
 
-        /* ── Connection badge ── */
-        .conn-badge {
-            display: flex; align-items: center; gap: 6px;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 13px; font-weight: 600;
-            background: #1c1c1c;
-            border: 1px solid var(--border);
-            transition: all .3s;
-        }
-        .conn-badge .dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: var(--muted);
-            transition: background .3s;
-        }
-        .conn-badge.on .dot  { background: var(--green); box-shadow: 0 0 6px var(--green); }
-        .conn-badge.on  { border-color: #238636; color: var(--green); }
-        .conn-badge.off { color: var(--muted); }
+/* ── Mode toggle ── */
+.mode-row{display:flex;align-items:center;background:var(--bg);
+  border:1px solid var(--border);border-radius:var(--radius);padding:4px;gap:4px}
+.mode-btn{flex:1;padding:9px 0;border:none;background:transparent;
+  color:var(--muted);border-radius:7px;font-size:13px;font-weight:600;
+  cursor:pointer;transition:all .2s;display:flex;align-items:center;
+  justify-content:center;gap:6px}
+.mode-btn.active{background:var(--accent);color:#fff}
+.mode-btn:not(.active):hover{color:var(--text)}
+.mode-btn:disabled{opacity:.4;cursor:not-allowed}
+.mode-locked{margin-top:8px;font-size:11px;color:var(--yellow);
+  display:none;align-items:center;gap:5px}
+.mode-locked.show{display:flex}
+.mode-hint{margin-top:10px;font-size:12px;color:var(--muted);
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:10px 12px;line-height:1.6;display:none}
+.mode-hint.show{display:block}
+.mode-hint strong{color:var(--text)}
 
-        /* ── Card ── */
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 16px;
-        }
-        .card-title {
-            font-size: 12px; font-weight: 600;
-            text-transform: uppercase; letter-spacing: .6px;
-            color: var(--muted); margin-bottom: 12px;
-        }
+/* ── Sudo password field (VPN mode) ── */
+.sudo-row{display:flex;gap:8px;margin-top:10px}
+.sudo-row input{flex:1;background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text);padding:9px 13px;
+  font-size:13px;outline:none;transition:border-color .2s}
+.sudo-row input:focus{border-color:var(--yellow)}
+.sudo-row input::placeholder{color:var(--muted)}
+.sudo-label{font-size:11px;color:var(--yellow);margin-top:6px;display:none}
+.sudo-label.show{display:block}
 
-        /* ── Add Config ── */
-        .add-row {
-            display: flex; gap: 8px;
-        }
-        .add-row input {
-            flex: 1;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            color: var(--text);
-            padding: 10px 14px;
-            font-size: 14px;
-            outline: none;
-            transition: border-color .2s;
-        }
-        .add-row input:focus { border-color: var(--accent); }
-        .add-row input::placeholder { color: var(--muted); }
+/* ── Config list ── */
+.config-list{display:flex;flex-direction:column;gap:8px}
+.config-item{display:flex;align-items:center;gap:10px;background:var(--bg);
+  border:1px solid var(--border);border-radius:var(--radius);
+  padding:12px 14px;transition:border-color .2s;cursor:default}
+.config-item:hover{border-color:#4a4a6a}
+.config-item.active{border-color:var(--accent);background:#13103a}
+.proto-badge{font-size:10px;font-weight:700;letter-spacing:.5px;
+  padding:3px 7px;border-radius:5px;background:#21262d;
+  color:var(--accent);min-width:56px;text-align:center;flex-shrink:0}
+.proto-badge.vless{color:#79c0ff}
+.proto-badge.vmess{color:#d2a8ff}
+.proto-badge.ss,.proto-badge.shadowsocks{color:#56d364}
+.proto-badge.socks{color:#ffa657}
+.proto-badge.http,.proto-badge.tcp{color:var(--yellow)}
+.config-info{flex:1;overflow:hidden}
+.config-name{font-weight:600;font-size:14px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.config-meta{font-size:12px;color:var(--muted);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.config-ping{font-size:12px;font-weight:600;flex-shrink:0;
+  min-width:44px;text-align:right}
+.ping-good{color:var(--green)}.ping-mid{color:var(--yellow)}
+.ping-bad{color:var(--red)}.ping-none{color:var(--muted)}
+.config-actions{display:flex;gap:6px;flex-shrink:0}
+.icon-btn{width:32px;height:32px;background:transparent;
+  border:1px solid var(--border);border-radius:7px;color:var(--muted);
+  cursor:pointer;font-size:14px;display:flex;align-items:center;
+  justify-content:center;transition:all .15s}
+.icon-btn:hover{border-color:var(--accent);color:var(--text)}
+.icon-btn.delete:hover{border-color:var(--red);color:var(--red)}
+.connect-btn{padding:6px 14px;border-radius:7px;border:none;
+  font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;
+  background:#21262d;color:var(--muted);flex-shrink:0}
+.connect-btn:hover{background:var(--accent);color:#fff}
+.connect-btn.active{background:var(--green);color:#fff}
+.empty-state{text-align:center;color:var(--muted);padding:32px 0;
+  font-size:14px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.empty-icon{font-size:32px;opacity:.4}
 
-        .btn {
-            padding: 10px 18px;
-            border: none; border-radius: var(--radius);
-            font-size: 14px; font-weight: 600;
-            cursor: pointer; transition: opacity .15s, transform .1s;
-            white-space: nowrap;
-        }
-        .btn:active { transform: scale(.97); }
-        .btn-primary { background: var(--accent); color: #fff; }
-        .btn-primary:hover { background: var(--accent-h); }
-        .btn-ghost {
-            background: transparent;
-            border: 1px solid var(--border);
-            color: var(--muted);
-        }
-        .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
+/* ── Connect btn states ── */
+.connect-btn.disconnecting{background:#3d1c1c;color:var(--red);border-color:#6e2020}
 
-        /* ── Paste hint ── */
-        .paste-hint {
-            margin-top: 8px; font-size: 12px; color: var(--muted);
-            display: flex; align-items: center; gap: 6px;
-        }
-        .kbd {
-            background: #21262d; border: 1px solid var(--border);
-            border-radius: 4px; padding: 1px 6px;
-            font-family: monospace; font-size: 11px; color: var(--text);
-        }
+/* ── Ping result ── */
+.ping-http{font-size:11px;color:var(--muted);margin-top:3px}
+.xray-warn{display:none;background:#2d1f00;border:1px solid #6e4c00;
+  border-radius:var(--radius);padding:14px 16px;gap:12px;align-items:flex-start}
+.xray-warn.show{display:flex}
+.warn-icon{font-size:20px;flex-shrink:0;margin-top:1px}
+.warn-body{flex:1}
+.warn-title{font-weight:700;color:#f0a500;font-size:14px}
+.warn-desc{font-size:12px;color:#a07830;margin-top:4px;line-height:1.5}
+.warn-desc code{background:#1a1200;border:1px solid #4a3200;border-radius:4px;
+  padding:2px 6px;font-family:monospace;font-size:11px;color:#ffd080;
+  display:block;margin-top:6px;word-break:break-all}
+.btn-install{background:#6e4c00;color:#ffd080;border:1px solid #a07030;
+  padding:7px 14px;font-size:13px;font-weight:600;border-radius:7px;
+  cursor:pointer;white-space:nowrap;flex-shrink:0;align-self:center;
+  transition:background .15s}
+.btn-install:hover{background:#8a6000}
+.btn-install:disabled{opacity:.5;cursor:default}
 
-        /* ── Mode toggle ── */
-        .mode-row {
-            display: flex; align-items: center;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 4px;
-            gap: 4px;
-        }
-        .mode-btn {
-            flex: 1; padding: 9px 0; border: none;
-            background: transparent; color: var(--muted);
-            border-radius: 7px; font-size: 13px; font-weight: 600;
-            cursor: pointer; transition: all .2s;
-            display: flex; align-items: center; justify-content: center; gap: 6px;
-        }
-        .mode-btn.active {
-            background: var(--accent);
-            color: #fff;
-        }
-        .mode-btn:not(.active):hover { color: var(--text); }
+/* ── Error box ── */
+.err-detail{display:none;background:#2a1010;border:1px solid #6e2020;
+  border-radius:var(--radius);padding:12px 14px;
+  font-size:12px;color:#f87171;font-family:monospace;
+  white-space:pre-wrap;word-break:break-all}
+.err-detail.show{display:block}
 
-        /* ── Config list ── */
-        .config-list { display: flex; flex-direction: column; gap: 8px; }
+/* ── Clipboard overlay ── */
+.clip-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);
+  display:none;align-items:center;justify-content:center;
+  z-index:99;backdrop-filter:blur(4px)}
+.clip-overlay.show{display:flex}
+.clip-box{background:var(--surface);border:1px solid var(--accent);
+  border-radius:14px;padding:28px 32px;text-align:center;
+  max-width:380px;width:90%;animation:fadeUp .2s ease}
+.clip-box .icon{font-size:36px;margin-bottom:12px}
+.clip-box h3{font-size:16px;margin-bottom:6px}
+.clip-box p{color:var(--muted);font-size:13px;margin-bottom:20px;word-break:break-all}
+.clip-box .btns{display:flex;gap:8px}
+.clip-box .btns .btn{flex:1;padding:10px}
+.btn-cancel{background:#21262d;border:1px solid var(--border);color:var(--muted)}
 
-        .config-item {
-            display: flex; align-items: center; gap: 10px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 12px 14px;
-            transition: border-color .2s;
-            cursor: pointer;
-        }
-        .config-item:hover { border-color: #4a4a6a; }
-        .config-item.active { border-color: var(--accent); background: #13103a; }
-
-        .proto-badge {
-            font-size: 10px; font-weight: 700; letter-spacing: .5px;
-            padding: 3px 7px; border-radius: 5px;
-            background: #21262d; color: var(--accent);
-            min-width: 56px; text-align: center; flex-shrink: 0;
-        }
-        .proto-badge.vless  { color: #79c0ff; }
-        .proto-badge.vmess  { color: #d2a8ff; }
-        .proto-badge.ss     { color: #56d364; }
-        .proto-badge.socks  { color: #ffa657; }
-        .proto-badge.http   { color: var(--yellow); }
-
-        .config-info { flex: 1; overflow: hidden; }
-        .config-name {
-            font-weight: 600; font-size: 14px;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        .config-meta {
-            font-size: 12px; color: var(--muted); margin-top: 2px;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-
-        .config-ping {
-            font-size: 12px; font-weight: 600; flex-shrink: 0;
-            min-width: 44px; text-align: right;
-        }
-        .ping-good { color: var(--green); }
-        .ping-mid  { color: var(--yellow); }
-        .ping-bad  { color: var(--red); }
-        .ping-none { color: var(--muted); }
-
-        .config-actions { display: flex; gap: 6px; flex-shrink: 0; }
-
-        .icon-btn {
-            width: 32px; height: 32px;
-            background: transparent;
-            border: 1px solid var(--border);
-            border-radius: 7px;
-            color: var(--muted);
-            cursor: pointer; font-size: 14px;
-            display: flex; align-items: center; justify-content: center;
-            transition: all .15s;
-        }
-        .icon-btn:hover { border-color: var(--accent); color: var(--text); }
-        .icon-btn.delete:hover { border-color: var(--red); color: var(--red); }
-
-        .connect-btn {
-            padding: 6px 14px;
-            border-radius: 7px; border: none;
-            font-size: 12px; font-weight: 600;
-            cursor: pointer; transition: all .15s;
-            background: #21262d; color: var(--muted);
-            flex-shrink: 0;
-        }
-        .connect-btn:hover { background: var(--accent); color: #fff; }
-        .connect-btn.active { background: var(--green); color: #fff; }
-
-        .empty-state {
-            text-align: center; color: var(--muted);
-            padding: 32px 0; font-size: 14px;
-            display: flex; flex-direction: column; align-items: center; gap: 8px;
-        }
-        .empty-icon { font-size: 32px; opacity: .4; }
-
-        /* ── Bottom actions ── */
-        .bottom-row { display: flex; gap: 8px; }
-        .bottom-row .btn { flex: 1; padding: 12px; font-size: 15px; }
-        .btn-stop  { background: #2d1b1b; border: 1px solid #5a2020; color: var(--red); font-weight: 700; }
-        .btn-stop:hover { background: #3d2222; }
-        .btn-disconnect { background: #21262d; border: 1px solid var(--border); color: var(--muted); }
-        .btn-disconnect:hover { color: var(--text); border-color: var(--muted); }
-
-        /* ── Toast ── */
-        .toast {
-            position: fixed; bottom: 24px; right: 24px; left: 24px;
-            max-width: 360px; margin: 0 auto;
-            padding: 12px 20px;
-            border-radius: var(--radius);
-            font-size: 14px; font-weight: 500;
-            animation: fadeUp .25s ease;
-            z-index: 999;
-        }
-        .toast.ok  { background: #1c4a2a; border: 1px solid #238636; color: #56d364; }
-        .toast.err { background: #3d1c1c; border: 1px solid #6e2020; color: #f85149; }
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(12px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        /* ── Clipboard overlay ── */
-        .clip-overlay {
-            position: fixed; inset: 0;
-            background: rgba(0,0,0,.7);
-            display: none; align-items: center; justify-content: center;
-            z-index: 99; backdrop-filter: blur(4px);
-        }
-        .clip-overlay.show { display: flex; }
-        .clip-box {
-            background: var(--surface);
-            border: 1px solid var(--accent);
-            border-radius: 14px;
-            padding: 28px 32px;
-            text-align: center; max-width: 360px; width: 90%;
-            animation: fadeUp .2s ease;
-        }
-        .clip-box .icon { font-size: 36px; margin-bottom: 12px; }
-        .clip-box h3 { font-size: 16px; margin-bottom: 6px; }
-        .clip-box p  { color: var(--muted); font-size: 13px; margin-bottom: 20px; word-break: break-all; }
-        .clip-box .btns { display: flex; gap: 8px; }
-        .clip-box .btns .btn { flex: 1; padding: 10px; }
-        .btn-cancel { background: #21262d; border: 1px solid var(--border); color: var(--muted); }
-
-        /* ── Xray warning banner ── */
-        .xray-warn {
-            display: none;
-            background: #2d1f00;
-            border: 1px solid #6e4c00;
-            border-radius: var(--radius);
-            padding: 14px 16px;
-            gap: 12px;
-            align-items: flex-start;
-        }
-        .xray-warn.show { display: flex; }
-        .xray-warn .warn-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
-        .xray-warn .warn-body { flex: 1; }
-        .xray-warn .warn-title { font-weight: 700; color: #f0a500; font-size: 14px; }
-        .xray-warn .warn-desc  { font-size: 12px; color: #a07830; margin-top: 4px; line-height: 1.5; }
-        .warn-desc code {
-            background: #1a1200; border: 1px solid #4a3200;
-            border-radius: 4px; padding: 2px 6px;
-            font-family: monospace; font-size: 11px; color: #ffd080;
-            display: block; margin-top: 6px; word-break: break-all;
-        }
-        .btn-install {
-            background: #6e4c00; color: #ffd080;
-            border: 1px solid #a07030;
-            padding: 7px 14px; font-size: 13px; font-weight: 600;
-            border-radius: 7px; cursor: pointer; white-space: nowrap;
-            flex-shrink: 0; align-self: center;
-            transition: background .15s;
-        }
-        .btn-install:hover { background: #8a6000; }
-        .btn-install:disabled { opacity: .5; cursor: default; }
-
-        /* ── Error detail box ── */
-        .err-detail {
-            display: none;
-            background: #2a1010;
-            border: 1px solid #6e2020;
-            border-radius: var(--radius);
-            padding: 12px 14px;
-            font-size: 12px; color: #f87171;
-            font-family: monospace; white-space: pre-wrap; word-break: break-all;
-        }
-        .err-detail.show { display: block; }
-    </style>
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;right:24px;left:24px;max-width:360px;
+  margin:0 auto;padding:12px 20px;border-radius:var(--radius);
+  font-size:14px;font-weight:500;animation:fadeUp .25s ease;z-index:999}
+.toast.ok{background:#1c4a2a;border:1px solid #238636;color:#56d364}
+.toast.err{background:#3d1c1c;border:1px solid #6e2020;color:#f85149}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+</style>
 </head>
 <body>
 <div class="app">
 
-    <!-- Header -->
-    <div class="header">
-        <h1><span>Xray</span> Manager</h1>
-        <div class="conn-badge off" id="badge">
-            <span class="dot"></span>
-            <span id="badge-text">Disconnected</span>
-        </div>
+  <!-- Header -->
+  <div class="header">
+    <h1><span>Xray</span> Manager</h1>
+    <div class="conn-badge off" id="badge">
+      <span class="dot"></span>
+      <span id="badgeText">Disconnected</span>
+    </div>
+  </div>
+
+  <!-- Xray not-installed warning -->
+  <div class="xray-warn" id="xrayWarn">
+    <div class="warn-icon">⚠️</div>
+    <div class="warn-body">
+      <div class="warn-title">Xray core is not installed</div>
+      <div class="warn-desc">
+        Connections won't work until Xray is installed. Click Install or run:
+        <code>bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install</code>
+      </div>
+    </div>
+    <button class="btn-install" id="installBtn" onclick="installXray()">⬇ Install</button>
+  </div>
+
+  <!-- Error detail -->
+  <div class="err-detail" id="errDetail"></div>
+
+  <!-- Add Config -->
+  <div class="card">
+    <div class="card-title">Add Config</div>
+    <div class="add-row">
+      <input id="linkInput" type="text"
+             placeholder="vless://... or vmess://... or ss://..."
+             autocomplete="off" spellcheck="false">
+      <button class="btn btn-primary" onclick="addConfig()">Add</button>
+    </div>
+    <div class="paste-hint">
+      <span class="kbd">Ctrl+V</span> anywhere — auto-detected and added instantly
+    </div>
+  </div>
+
+  <!-- Mode Toggle -->
+  <div class="card">
+    <div class="card-title">Connection Mode</div>
+    <div class="mode-row">
+      <button class="mode-btn active" id="modeProxy" onclick="setMode('proxy')">
+        🔀 Proxy (SOCKS5)
+      </button>
+      <button class="mode-btn" id="modeVpn" onclick="setMode('vpn')">
+        🛡 VPN (TUN)
+      </button>
     </div>
 
-    <!-- Xray not-installed warning -->
-    <div class="xray-warn" id="xrayWarn">
-        <div class="warn-icon">⚠️</div>
-        <div class="warn-body">
-            <div class="warn-title">Xray core is not installed</div>
-            <div class="warn-desc">
-                Connections won't work until Xray is installed.
-                Click Install to download it automatically, or run manually:
-                <code id="installCmd">bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install</code>
-            </div>
-        </div>
-        <button class="btn-install" id="installBtn" onclick="installXray()">⬇ Install</button>
+    <!-- Lock notice when connected -->
+    <div class="mode-locked" id="modeLocked">
+      🔒 Disconnect first to switch mode
     </div>
 
-    <!-- Last error detail -->
-    <div class="err-detail" id="errDetail"></div>
-
-    <!-- Add Config -->
-    <div class="card">
-        <div class="card-title">Add Config</div>
-        <div class="add-row">
-            <input id="linkInput" type="text"
-                   placeholder="vless://... or vmess://... or ss://..."
-                   autocomplete="off" spellcheck="false">
-            <button class="btn btn-primary" onclick="addConfig()">Add</button>
-        </div>
-        <div class="paste-hint">
-            <span class="kbd">Ctrl+V</span>
-            anywhere on the page — auto-detected and added instantly
-        </div>
+    <!-- Proxy mode hint -->
+    <div class="mode-hint show" id="hintProxy">
+      <strong>Proxy mode</strong> — Xray listens as SOCKS5 on <strong>127.0.0.1:10808</strong>.
+      System proxy is set automatically on connect and restored on disconnect.
+      Works without root.
     </div>
 
-    <!-- Mode Toggle -->
-    <div class="card">
-        <div class="card-title">Connection Mode</div>
-        <div class="mode-row">
-            <button class="mode-btn active" id="modeProxy" onclick="setMode('proxy')">
-                🔀 Proxy (SOCKS5)
-            </button>
-            <button class="mode-btn" id="modeVpn" onclick="setMode('vpn')" title="Sets system-wide SOCKS proxy via gsettings. Needs GNOME desktop.">
-                🛡 VPN (System Proxy)
-            </button>
-        </div>
-        <div id="modeHint" style="margin-top:10px;font-size:12px;color:var(--muted);display:none;">
-            Sets GNOME system-wide SOCKS5 proxy → 127.0.0.1:10808. All apps that respect system proxy will route through Xray.
-        </div>
+    <!-- VPN/TUN mode hint + sudo field -->
+    <div class="mode-hint" id="hintVpn">
+      <strong>VPN mode</strong> — Creates a real <strong>tun0</strong> virtual network interface
+      and routes <em>all</em> traffic through it. Requires <strong>sudo</strong> to set up the
+      TUN device and routing rules.
+      <div class="sudo-row">
+        <input type="password" id="sudoPass" placeholder="sudo password"
+               autocomplete="current-password" spellcheck="false">
+      </div>
+      <div class="sudo-label show" id="sudoLabel">
+        🔒 Password is sent directly to <code>sudo -S</code> and never stored.
+      </div>
     </div>
+  </div>
 
-    <!-- Config List -->
-    <div class="card">
-        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
-            <span>Configs</span>
-            <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="loadConfigs()">↻ Refresh</button>
-        </div>
-        <div class="config-list" id="configList">
-            <div class="empty-state">
-                <span class="empty-icon">📋</span>
-                <span>No configs yet — paste a link above or press <strong>Ctrl+V</strong></span>
-            </div>
-        </div>
+  <!-- Config List -->
+  <div class="card">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Configs</span>
+      <button class="btn btn-ghost"
+              style="padding:4px 10px;font-size:12px" onclick="loadConfigs()">↻ Refresh</button>
     </div>
+    <div class="config-list" id="configList">
+      <div class="empty-state">
+        <span class="empty-icon">📋</span>
+        <span>No configs yet — paste a link above or press <strong>Ctrl+V</strong></span>
+      </div>
+    </div>
+  </div>
 
-    <!-- Bottom actions -->
-    <div class="bottom-row">
-        <button class="btn btn-disconnect" onclick="doDisconnect()">Disconnect</button>
-        <button class="btn btn-stop"       onclick="doStop()">⏹ Stop All</button>
-    </div>
+
 
 </div>
 
-<!-- Clipboard Overlay -->
+<!-- Clipboard overlay -->
 <div class="clip-overlay" id="clipOverlay">
-    <div class="clip-box">
-        <div class="icon">📋</div>
-        <h3>Config detected</h3>
-        <p id="clipPreview"></p>
-        <div class="btns">
-            <button class="btn btn-cancel" onclick="closeClip()">Cancel</button>
-            <button class="btn btn-primary" onclick="confirmClip()">Add Config</button>
-        </div>
+  <div class="clip-box">
+    <div class="icon">📋</div>
+    <h3>Config detected</h3>
+    <p id="clipPreview"></p>
+    <div class="btns">
+      <button class="btn btn-cancel" onclick="closeClip()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmClip()">Add Config</button>
     </div>
+  </div>
 </div>
 
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
-var currentMode = 'proxy';
+var currentMode     = 'proxy';
 var pendingClipLink = '';
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 function toast(msg, type) {
-    var el = document.createElement('div');
-    el.className = 'toast ' + (type === 'err' ? 'err' : 'ok');
-    el.textContent = msg;
-    document.body.appendChild(el);
-    setTimeout(function() { el.remove(); }, 2800);
+  var el = document.createElement('div');
+  el.className = 'toast ' + (type === 'err' ? 'err' : 'ok');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(function() { el.remove(); }, 3000);
+}
+
+function showErr(msg) {
+  var el = document.getElementById('errDetail');
+  if (msg) { el.textContent = msg; el.classList.add('show'); }
+  else      { el.textContent = '';  el.classList.remove('show'); }
 }
 
 async function api(url, method, body) {
-    var opts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' } };
-    if (body) opts.body = JSON.stringify(body);
-    var r = await fetch(url, opts);
-    return r.json();
+  var opts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  var r = await fetch(url, opts);
+  return r.json();
 }
 
-function isConfigLink(text) {
-    return /^(vless|vmess|ss|socks|http|https):\/\/.+/.test(text.trim());
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Mode ───────────────────────────────────────────────────────────────────
+function isConfigLink(t) {
+  return /^(vless|vmess|ss|socks|http|https):\/\/.+/.test(t.trim());
+}
+
+// ── Mode toggle ────────────────────────────────────────────────────────────
+var isConnected = false; // kept in sync by pollStatus
+
 function setMode(mode) {
-    currentMode = mode;
-    document.getElementById('modeProxy').classList.toggle('active', mode === 'proxy');
-    document.getElementById('modeVpn').classList.toggle('active', mode === 'vpn');
-    document.getElementById('modeHint').style.display = mode === 'vpn' ? 'block' : 'none';
+  if (isConnected) {
+    toast('Disconnect first before switching mode', 'err');
+    return;
+  }
+  currentMode = mode;
+  document.getElementById('modeProxy').classList.toggle('active', mode === 'proxy');
+  document.getElementById('modeVpn')  .classList.toggle('active', mode === 'vpn');
+  document.getElementById('hintProxy').classList.toggle('show', mode === 'proxy');
+  document.getElementById('hintVpn')  .classList.toggle('show', mode === 'vpn');
 }
 
-// ── Clipboard auto-detect ──────────────────────────────────────────────────
+function lockModeButtons(lock) {
+  var btnProxy = document.getElementById('modeProxy');
+  var btnVpn   = document.getElementById('modeVpn');
+  var notice   = document.getElementById('modeLocked');
+  btnProxy.disabled = lock;
+  btnVpn.disabled   = lock;
+  notice.classList.toggle('show', lock);
+}
+
+// ── Clipboard ──────────────────────────────────────────────────────────────
 document.addEventListener('keydown', function(e) {
-    // Ctrl+V anywhere except when focused on the link input
-    if (e.ctrlKey && e.key === 'v') {
-        var active = document.activeElement;
-        if (active && active.id === 'linkInput') return; // let normal paste work
-        e.preventDefault();
-        navigator.clipboard.readText().then(function(text) {
-            text = text.trim();
-            if (isConfigLink(text)) {
-                pendingClipLink = text;
-                document.getElementById('clipPreview').textContent =
-                    text.length > 80 ? text.substring(0, 80) + '…' : text;
-                document.getElementById('clipOverlay').classList.add('show');
-            } else {
-                toast('Clipboard does not contain a valid config link', 'err');
-            }
-        }).catch(function() {
-            toast('Could not read clipboard', 'err');
-        });
-    }
+  if (e.ctrlKey && e.key === 'v') {
+    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+    e.preventDefault();
+    navigator.clipboard.readText().then(function(text) {
+      text = text.trim();
+      if (isConfigLink(text)) {
+        pendingClipLink = text;
+        document.getElementById('clipPreview').textContent =
+          text.length > 80 ? text.substring(0, 80) + '…' : text;
+        document.getElementById('clipOverlay').classList.add('show');
+      } else {
+        toast('Clipboard does not contain a valid config link', 'err');
+      }
+    }).catch(function() { toast('Could not read clipboard', 'err'); });
+  }
 });
 
-// Also handle paste event on the page body
 document.addEventListener('paste', function(e) {
-    var active = document.activeElement;
-    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
-    var text = (e.clipboardData || window.clipboardData).getData('text').trim();
-    if (isConfigLink(text)) {
-        e.preventDefault();
-        addConfigLink(text);
-    }
+  var active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+  var text = (e.clipboardData || window.clipboardData).getData('text').trim();
+  if (isConfigLink(text)) { e.preventDefault(); addConfigLink(text); }
 });
 
 function closeClip() {
-    document.getElementById('clipOverlay').classList.remove('show');
-    pendingClipLink = '';
+  document.getElementById('clipOverlay').classList.remove('show');
+  pendingClipLink = '';
 }
-
 function confirmClip() {
-    if (pendingClipLink) addConfigLink(pendingClipLink);
-    closeClip();
+  if (pendingClipLink) addConfigLink(pendingClipLink);
+  closeClip();
 }
 
-// ── Add Config ─────────────────────────────────────────────────────────────
+// ── Add config ─────────────────────────────────────────────────────────────
 function addConfig() {
-    var input = document.getElementById('linkInput');
-    var link = input.value.trim();
-    if (!link) { toast('Paste a config link first', 'err'); return; }
-    addConfigLink(link);
-    input.value = '';
+  var input = document.getElementById('linkInput');
+  var link  = input.value.trim();
+  if (!link) { toast('Paste a config link first', 'err'); return; }
+  addConfigLink(link);
+  input.value = '';
 }
 
 async function addConfigLink(link) {
-    try {
-        var res = await api('/api/configs/add', 'POST', { link: link });
-        if (res.success) {
-            toast('Config added: ' + res.config.name, 'ok');
-            loadConfigs();
-        } else {
-            toast(res.error || 'Invalid link', 'err');
-        }
-    } catch(e) { toast('Failed to add config', 'err'); }
+  showErr('');
+  try {
+    var res = await api('/api/configs/add', 'POST', { link: link });
+    if (res.success) {
+      toast('Config added: ' + res.config.name, 'ok');
+      loadConfigs();
+    } else {
+      toast(res.error || 'Invalid link', 'err');
+    }
+  } catch(e) { toast('Failed to add config', 'err'); }
 }
 
-// ── Load & Render configs ──────────────────────────────────────────────────
+// ── Load & render ──────────────────────────────────────────────────────────
 async function loadConfigs() {
-    try {
-        var res = await api('/api/configs/list');
-        if (res.success) renderConfigs(res.configs || []);
-    } catch(e) {}
+  try {
+    // No cache: always fetches live from server
+    var res = await api('/api/configs/list');
+    if (res.success) renderConfigs(res.configs || []);
+  } catch(e) {}
 }
 
 function pingColor(ms) {
-    if (!ms || ms < 0) return 'ping-none';
-    if (ms < 150) return 'ping-good';
-    if (ms < 400) return 'ping-mid';
-    return 'ping-bad';
+  if (ms == null || ms < 0) return 'ping-none';
+  if (ms < 150)  return 'ping-good';
+  if (ms < 400)  return 'ping-mid';
+  return 'ping-bad';
 }
 
 function renderConfigs(list) {
-    var el = document.getElementById('configList');
-    if (!list.length) {
-        el.innerHTML = '<div class="empty-state"><span class="empty-icon">📋</span><span>No configs yet — paste a link above or press <strong>Ctrl+V</strong></span></div>';
-        return;
-    }
-    el.innerHTML = list.map(function(c) {
-        var proto = (c.protocol || 'tcp').toLowerCase();
-        var ping = c.pingMs;
-        var pingText = (!ping || ping < 0) ? '—' : ping + 'ms';
-        var pingCls  = pingColor(ping);
-        var isActive = !!c.active;
-        return [
-            '<div class="config-item' + (isActive ? ' active' : '') + '" id="cfg-' + c.id + '">',
-            '  <span class="proto-badge ' + proto + '">' + proto.toUpperCase() + '</span>',
-            '  <div class="config-info">',
-            '    <div class="config-name">' + esc(c.name) + '</div>',
-            '    <div class="config-meta">' + esc(c.address) + ':' + c.port + '</div>',
-            '  </div>',
-            '  <span class="config-ping ' + pingCls + '">' + pingText + '</span>',
-            '  <div class="config-actions">',
-            '    <button class="icon-btn" title="Ping" onclick="pingOne(\'' + c.id + '\')">📶</button>',
-            '    <button class="icon-btn delete" title="Remove" onclick="removeConfig(\'' + c.id + '\')">🗑</button>',
-            '    <button class="connect-btn' + (isActive ? ' active' : '') + '" onclick="connectConfig(\'' + c.id + '\')">' + (isActive ? '● Connected' : 'Connect') + '</button>',
-            '  </div>',
-            '</div>'
-        ].join('');
-    }).join('');
-}
+  var el = document.getElementById('configList');
+  if (!list.length) {
+    el.innerHTML =
+      '<div class="empty-state">' +
+      '<span class="empty-icon">📋</span>' +
+      '<span>No configs yet — paste a link above or press <strong>Ctrl+V</strong></span>' +
+      '</div>';
+    return;
+  }
+  el.innerHTML = list.map(function(c) {
+    var proto    = (c.protocol || 'tcp').toLowerCase();
+    var isActive = !!c.active;
 
-function esc(t) {
-    var d = document.createElement('div');
-    d.textContent = t || '';
-    return d.innerHTML;
+    // HTTP ping display
+    var pingText = '—';
+    var pingCls  = 'ping-none';
+    if (c.pingMs != null && c.pingMs >= 0) {
+      pingText = c.pingMs + 'ms';
+      pingCls  = pingColor(c.pingMs);
+    }
+
+    // Connect / Disconnect button
+    var connBtn = isActive
+      ? '<button class="connect-btn active" onclick="doDisconnect()">' +
+          '⏹ Disconnect</button>'
+      : '<button class="connect-btn" onclick="connectConfig(\'' + c.id + '\')">' +
+          'Connect</button>';
+
+    return (
+      '<div class="config-item' + (isActive ? ' active' : '') + '" id="cfg-' + c.id + '">' +
+      '  <span class="proto-badge ' + proto + '">' + proto.toUpperCase() + '</span>' +
+      '  <div class="config-info">' +
+      '    <div class="config-name">' + esc(c.name) + '</div>' +
+      '    <div class="config-meta">' + esc(c.address) + ':' + c.port + '</div>' +
+      '  </div>' +
+      '  <span class="config-ping ' + pingCls + '" id="ping-' + c.id + '">' + pingText + '</span>' +
+      '  <div class="config-actions">' +
+      '    <button class="icon-btn" title="HTTP Ping via proxy" ' +
+               'onclick="pingHttp(\'' + c.id + '\')">📶</button>' +
+      '    <button class="icon-btn delete" title="Remove" ' +
+               'onclick="removeConfig(\'' + c.id + '\')">🗑</button>' +
+      '    ' + connBtn +
+      '  </div>' +
+      '</div>'
+    );
+  }).join('');
 }
 
 // ── Connect ────────────────────────────────────────────────────────────────
 async function connectConfig(id) {
-    clearErr();
-    try {
-        var res = await api('/api/configs/select/' + id, 'POST');
-        if (!res.success) {
-            showErr(res.error || 'Connection failed');
-            toast(shortErr(res.error), 'err');
-            return;
-        }
-
-        if (currentMode === 'vpn') {
-            var vpnRes = await api('/api/proxy/vpn', 'POST', {
-                enabled: true, tunName: 'tun0',
-                tunAddress: '10.0.0.2/24', dns: '8.8.8.8', routeAllTraffic: true
-            });
-            if (vpnRes.success) {
-                toast('Connected · VPN (System Proxy) mode', 'ok');
-            } else {
-                showErr(vpnRes.error || 'System proxy setup failed');
-                toast('Proxy OK — system proxy failed (see details)', 'err');
-            }
-        } else {
-            toast('Connected · Proxy mode  |  SOCKS5 127.0.0.1:10808', 'ok');
-        }
-        loadConfigs();
-        updateBadge();
-    } catch(e) {
-        showErr(e.message);
-        toast('Connection error: ' + shortErr(e.message), 'err');
+  showErr('');
+  try {
+    var res;
+    if (currentMode === 'vpn') {
+      var pw = document.getElementById('sudoPass').value;
+      if (!pw) {
+        toast('Enter your sudo password in the VPN mode section first', 'err');
+        document.getElementById('sudoPass').focus();
+        return;
+      }
+      res = await api('/api/configs/select-vpn/' + id, 'POST', { sudoPassword: pw });
+    } else {
+      res = await api('/api/configs/select/' + id, 'POST');
     }
+    if (res.success) {
+      toast('Connected' + (currentMode === 'vpn' ? ' via TUN' : ' via SOCKS5'), 'ok');
+      loadConfigs();
+      pollStatus();
+    } else {
+      showErr(res.error || 'Connection failed');
+      toast(res.error || 'Connection failed', 'err');
+    }
+  } catch(e) {
+    showErr(e.toString());
+    toast('Request failed', 'err');
+  }
 }
 
-// ── Disconnect / Stop ──────────────────────────────────────────────────────
-async function doDisconnect() {
-    clearErr();
-    try {
-        await api('/api/configs/disconnect', 'POST');
-        toast('Disconnected', 'ok');
-        loadConfigs();
-        updateBadge();
-    } catch(e) { toast('Error: ' + e.message, 'err'); }
+// ── HTTP Ping (via proxy → google.com) ────────────────────────────────────
+async function pingHttp(id) {
+  // Show spinner in ping cell
+  var cell = document.getElementById('ping-' + id);
+  if (cell) { cell.className = 'config-ping ping-none'; cell.textContent = '…'; }
+  try {
+    var res = await api('/api/configs/http-ping', 'POST',
+      { target: 'https://www.google.com', timeout: '5000' });
+    var ms = (res.withProxy != null && res.withProxy >= 0) ? res.withProxy : res.withoutProxy;
+    if (cell) {
+      cell.textContent = (ms != null && ms >= 0) ? ms + 'ms' : '✗';
+      cell.className   = 'config-ping ' + pingColor(ms);
+    }
+    // also store on the config entry so re-render keeps it
+    if (res.withProxy >= 0) {
+      toast('HTTP ping: ' + res.withProxy + 'ms (via proxy)', 'ok');
+    } else if (res.withoutProxy >= 0) {
+      toast('HTTP ping: ' + res.withoutProxy + 'ms (direct — proxy not active)', 'ok');
+    } else {
+      toast('Ping failed: ' + (res.error || 'timeout'), 'err');
+    }
+  } catch(e) {
+    if (cell) { cell.textContent = '✗'; cell.className = 'config-ping ping-bad'; }
+    toast('Ping request failed', 'err');
+  }
 }
 
-async function doStop() {
-    clearErr();
-    try {
-        await api('/api/proxy/stop', 'POST');
-        toast('All connections stopped', 'ok');
-        loadConfigs();
-        updateBadge();
-    } catch(e) { toast('Error: ' + e.message, 'err'); }
-}
-
-// ── Ping ──────────────────────────────────────────────────────────────────
-async function pingOne(id) {
-    try {
-        var res = await api('/api/configs/ping/' + id, 'POST');
-        if (res.success) {
-            var msg = res.pingMs >= 0 ? res.pingMs + ' ms' : 'Unreachable';
-            toast('Ping: ' + msg, res.pingMs >= 0 ? 'ok' : 'err');
-            loadConfigs();
-        }
-    } catch(e) {}
-}
-
-// ── Remove ────────────────────────────────────────────────────────────────
+// ── Remove ─────────────────────────────────────────────────────────────────
 async function removeConfig(id) {
-    if (!confirm('Remove this config?')) return;
-    try {
-        var res = await api('/api/configs/remove/' + id, 'DELETE');
-        if (res.success) { toast('Removed', 'ok'); loadConfigs(); }
-        else toast(res.error, 'err');
-    } catch(e) {}
+  try {
+    var res = await api('/api/configs/remove/' + id, 'DELETE');
+    if (res.success) { loadConfigs(); toast('Config removed', 'ok'); }
+    else toast(res.error || 'Remove failed', 'err');
+  } catch(e) { toast('Remove failed', 'err'); }
 }
 
-// ── Install Xray ──────────────────────────────────────────────────────────
+// ── Disconnect ─────────────────────────────────────────────────────────────
+async function doDisconnect() {
+  showErr('');
+  try {
+    var res = await api('/api/configs/disconnect', 'POST');
+    if (res.success) {
+      toast('Disconnected', 'ok');
+      loadConfigs();
+      pollStatus();
+    } else {
+      toast(res.error || 'Disconnect failed', 'err');
+    }
+  } catch(e) { toast('Disconnect failed', 'err'); }
+}
+
+// ── Status polling ─────────────────────────────────────────────────────────
+async function pollStatus() {
+  try {
+    var s = await api('/api/configs/status');
+    var badge   = document.getElementById('badge');
+    var badgeTx = document.getElementById('badgeText');
+
+    // Xray install warning
+    var warn = document.getElementById('xrayWarn');
+    if (s.xrayInstalled === false) warn.classList.add('show');
+    else                           warn.classList.remove('show');
+
+    isConnected = !!s.connected;
+    lockModeButtons(isConnected);
+
+    if (s.connected) {
+      badge.className   = 'conn-badge on';
+      badgeTx.textContent = (s.mode === 'vpn' ? '🛡 VPN' : '🔀 Proxy') +
+                            (s.serverAddress ? ' · ' + s.serverAddress : '');
+    } else {
+      badge.className   = 'conn-badge off';
+      badgeTx.textContent = 'Disconnected';
+    }
+  } catch(e) {}
+}
+
+// ── Install Xray ───────────────────────────────────────────────────────────
 async function installXray() {
-    var btn = document.getElementById('installBtn');
-    btn.disabled = true;
-    btn.textContent = '⏳ Installing…';
-    clearErr();
-    try {
-        var res = await fetch('/api/proxy/install', { method: 'POST' });
-        var data = await res.json();
-        if (data.success) {
-            toast('Xray installed successfully!', 'ok');
-            document.getElementById('xrayWarn').classList.remove('show');
-        } else {
-            showErr(data.error || 'Installation failed');
-            toast('Install failed — see error below', 'err');
-            btn.disabled = false;
-            btn.textContent = '⬇ Retry';
-        }
-    } catch(e) {
-        showErr(e.message);
-        toast('Install failed', 'err');
-        btn.disabled = false;
-        btn.textContent = '⬇ Retry';
+  var btn = document.getElementById('installBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Installing…';
+  try {
+    var res = await api('/api/configs/install-xray', 'POST');
+    if (res.success) {
+      toast('Xray installed successfully', 'ok');
+      document.getElementById('xrayWarn').classList.remove('show');
+    } else {
+      showErr(res.error);
+      toast('Install failed', 'err');
     }
-    updateBadge();
+  } catch(e) {
+    toast('Install request failed', 'err');
+  }
+  btn.disabled = false;
+  btn.textContent = '⬇ Install';
 }
 
-// ── Error helpers ─────────────────────────────────────────────────────────
-function showErr(msg) {
-    var el = document.getElementById('errDetail');
-    if (!msg) { el.classList.remove('show'); return; }
-    el.textContent = msg;
-    el.classList.add('show');
-    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-function clearErr() {
-    document.getElementById('errDetail').classList.remove('show');
-}
-function shortErr(msg) {
-    if (!msg) return 'Unknown error';
-    var first = msg.split('\n')[0];
-    return first.length > 80 ? first.substring(0, 80) + '…' : first;
-}
-
-// ── Status badge ──────────────────────────────────────────────────────────
-async function updateBadge() {
-    try {
-        var s = await api('/api/proxy/status');
-        var badge = document.getElementById('badge');
-        var txt   = document.getElementById('badge-text');
-        var warn  = document.getElementById('xrayWarn');
-
-        // xray installed check
-        if (s.xrayInstalled === false) {
-            warn.classList.add('show');
-        } else {
-            warn.classList.remove('show');
-        }
-
-        if (s.connected) {
-            badge.className = 'conn-badge on';
-            txt.textContent = s.protocol
-                ? s.protocol.toUpperCase() + ' · ' + (s.serverAddress || '')
-                : 'Connected';
-        } else {
-            badge.className = 'conn-badge off';
-            txt.textContent = 'Disconnected';
-        }
-    } catch(e) {}
-}
-
-// ── Input enter key ───────────────────────────────────────────────────────
-document.getElementById('linkInput').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') addConfig();
-    // Ctrl+V on input: let it paste normally, then auto-submit if valid
-    if (e.ctrlKey && e.key === 'v') {
-        setTimeout(function() {
-            var val = document.getElementById('linkInput').value.trim();
-            if (isConfigLink(val)) { addConfig(); }
-        }, 50);
-    }
-});
-
-// ── Init ──────────────────────────────────────────────────────────────────
+// ── Init ───────────────────────────────────────────────────────────────────
 loadConfigs();
-updateBadge();
-setInterval(updateBadge, 5000);
+pollStatus();
+setInterval(pollStatus, 5000);
 </script>
 </body>
 </html>
