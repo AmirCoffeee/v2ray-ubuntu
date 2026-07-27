@@ -1,83 +1,101 @@
 # v2ray-ubuntu
 
+![Java](https://img.shields.io/badge/Java-21-orange)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2-green)
+![Xray-core](https://img.shields.io/badge/Xray--core-latest-blue)
+![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)
+![License](https://img.shields.io/badge/license-MIT-brightgreen)
+
 A lightweight, web-based GUI manager for [Xray-core](https://github.com/XTLS/Xray-core) on Linux.  
 Paste a `vless://`, `vmess://`, or `ss://` link, hit Connect — done.
+
+---
+
+## Install (one line)
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/AmirCoffeee/AmirCoffeee-v2ray-ubuntu/main/install.sh)
+```
+
+The script will:
+1. Install **Java 21** (if missing)
+2. Install **Xray-core** (if missing)
+3. Download the latest JAR to `/opt/v2ray-ubuntu/`
+4. Register a **systemd service** that starts on boot
+5. Create a **`v2ray-ubuntu`** CLI command
+6. Add a **desktop shortcut** in your app menu
+
+Then open **http://localhost:8080** in your browser.
+
+---
+
+## CLI commands
+
+```bash
+v2ray-ubuntu start    # start the service
+v2ray-ubuntu stop     # stop the service
+v2ray-ubuntu restart  # restart the service
+v2ray-ubuntu status   # show service status
+v2ray-ubuntu log      # follow live logs
+v2ray-ubuntu open     # open http://localhost:8080 in browser
+```
+
+---
 
 ## Features
 
 - Paste any config link (`vless://`, `vmess://`, `ss://`, `socks://`) and connect in one click
 - **Ctrl+V anywhere** on the page auto-detects and adds config links from clipboard
-- Switch between **Proxy mode** (SOCKS5 on `127.0.0.1:10808`) and **System Proxy mode** (sets GNOME-wide proxy via `gsettings`)
+- Switch between **Proxy mode** (SOCKS5 on `127.0.0.1:10808`) and **System Proxy mode** (GNOME-wide via `gsettings`)
 - TCP ping per config to find the fastest server
 - Install Xray-core from the UI without touching the terminal
 - Runs entirely as a local web app — no cloud, no accounts
 
+---
+
 ## Requirements
 
-- Linux (Ubuntu / Debian recommended)
-- Java 21+
-- `curl` and `unzip` (for Xray auto-install)
+- Ubuntu / Debian Linux
+- `curl` and `unzip`
 - GNOME desktop (for System Proxy mode only)
 
-## Quick Start
+---
 
-### 1 — Install Xray-core
-
-```bash
-bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
-```
-
-This installs xray to `/usr/local/bin/xray`. Alternatively, use the **⬇ Install** button inside the UI after launching the app.
-
-### 2 — Run the app
+## Build from source
 
 ```bash
-./start.sh
-```
-
-Or manually:
-
-```bash
-java -jar target/v2ray-ubuntu-1.0.0.jar
-```
-
-Then open **http://localhost:8080** in your browser.
-
-### Build from source
-
-```bash
-# requires Maven 3.8+ and Java 21+
+git clone https://github.com/AmirCoffeee/AmirCoffeee-v2ray-ubuntu.git
+cd AmirCoffeee-v2ray-ubuntu
 mvn clean package -DskipTests
 java -jar target/v2ray-ubuntu-1.0.0.jar
 ```
 
-## Usage
-
-1. **Add a config** — paste a link into the input and press Enter (or Add), or just press **Ctrl+V** anywhere on the page
-2. **Select a config** from the list and click **Connect**
-3. Choose **Proxy** or **System Proxy** mode before connecting:
-   - **Proxy** — starts a SOCKS5 proxy on `127.0.0.1:10808`. Configure your browser or app to use it
-   - **System Proxy** — sets the GNOME system-wide proxy automatically (no per-app config needed)
-4. Use **Disconnect** to stop the active connection, or **Stop All** to kill everything
+---
 
 ## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET`  | `/api/proxy/status` | Connection status + xray install state |
-| `POST` | `/api/proxy/stop` | Stop all connections |
-| `POST` | `/api/proxy/install` | Download and install Xray-core |
-| `POST` | `/api/proxy/vpn` | Enable / disable system proxy |
-| `POST` | `/api/configs/add` | Add a config from a link |
-| `GET`  | `/api/configs/list` | List all saved configs |
-| `POST` | `/api/configs/select/{id}` | Activate a config and connect |
-| `POST` | `/api/configs/disconnect` | Disconnect and clear active state |
-| `POST` | `/api/configs/ping/{id}` | TCP ping a config |
-| `DELETE` | `/api/configs/remove/{id}` | Remove a config |
+| `GET`    | `/api/proxy/status`           | Connection status + xray install state |
+| `POST`   | `/api/proxy/stop`             | Stop all connections |
+| `POST`   | `/api/proxy/install`          | Download and install Xray-core |
+| `POST`   | `/api/proxy/vpn`              | Enable / disable system proxy |
+| `POST`   | `/api/configs/add`            | Add a config from a link |
+| `GET`    | `/api/configs/list`           | List all saved configs |
+| `POST`   | `/api/configs/select/{id}`    | Activate a config and connect |
+| `POST`   | `/api/configs/disconnect`     | Disconnect and clear active state |
+| `POST`   | `/api/configs/ping/{id}`      | TCP ping a config |
+| `DELETE` | `/api/configs/remove/{id}`    | Remove a config |
 
-## Config storage
+---
 
-Xray config files are written to `~/.xray-manager/` — no root access needed.
+## How it works
+
+- Config files are written to `~/.xray-manager/` — no root access needed for the proxy
+- The systemd service runs as your user
+- System Proxy mode calls `gsettings` to set GNOME proxy (requires GNOME desktop)
+
+---
 
 ## License
 
