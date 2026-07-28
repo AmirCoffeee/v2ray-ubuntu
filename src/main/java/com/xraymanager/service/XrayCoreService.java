@@ -267,11 +267,23 @@ public class XrayCoreService {
      * Guard: if backup file already exists and proxy is already ours → skip.
      */
     private void saveCurrentSystemProxy() {
-        // If backup file exists, a previous session set the proxy and didn't clean up.
-        // Don't overwrite it — it still points to the user's original settings.
+        // If backup file already exists, a previous session connected but didn't
+        // disconnect cleanly. Don't overwrite the original backup — but DO re-apply
+        // our proxy settings in case they were cleared by a reboot or logout.
         if (new File(BACKUP_FILE).exists()) {
-            LOG.info("Proxy backup already exists on disk — skipping save.");
+            LOG.info("Proxy backup already on disk — re-applying proxy settings.");
             proxySystemActive.set(true);
+            try {
+                gsettingsSet("org.gnome.system.proxy",       "mode", "manual");
+                gsettingsSet("org.gnome.system.proxy.socks", "host", SOCKS_LISTEN_HOST);
+                gsettingsSet("org.gnome.system.proxy.socks", "port", String.valueOf(SOCKS_LISTEN_PORT));
+                gsettingsSet("org.gnome.system.proxy.http",  "host", "");
+                gsettingsSet("org.gnome.system.proxy.http",  "port", "0");
+                gsettingsSet("org.gnome.system.proxy.https", "host", "");
+                gsettingsSet("org.gnome.system.proxy.https", "port", "0");
+            } catch (Exception e) {
+                LOG.warning("Could not re-apply proxy: " + e.getMessage());
+            }
             return;
         }
         try {
