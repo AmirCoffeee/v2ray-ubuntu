@@ -7,12 +7,10 @@ import com.xraymanager.model.VpnConfig;
 import org.apache.commons.io.FileUtils;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.nio.file.*;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
@@ -21,34 +19,35 @@ import java.util.logging.Logger;
  * Manages the Xray process.
  *
  * Two modes:
- *  - PROXY  : Xray runs as SOCKS5 inbound (port 10808) → outbound to the remote server.
- *             System proxy (gsettings / KDE) is set to socks5://127.0.0.1:10808 on connect
- *             and restored to whatever it was before on disconnect / shutdown.
+ *  PROXY — SOCKS5 inbound 127.0.0.1:10808 → outbound to remote server.
+ *          System proxy (gsettings) is set to socks5://127.0.0.1:10808 on connect
+ *          and restored to previous values on disconnect / shutdown.
  *
- *  - VPN    : A real TUN interface (tun0) is created with sudo. All traffic is routed
- *             through it. Requires the user to supply their sudo password via the UI.
+ *  VPN   — tun0 created via sudo, all traffic routed through it.
+ *
+ * Fixes vs previous version:
+ *  - gsettings always runs with the user's DBUS session (detected at startup
+ *    and again at runtime so it works from systemd).
+ *  - Previous proxy settings are saved to disk so they survive service restarts.
+ *  - setSystemProxySocks always uses 127.0.0.1, never the remote server address.
  */
 @Service
 public class XrayCoreService {
 
     private static final Logger LOG = Logger.getLogger(XrayCoreService.class.getName());
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final ConnectionStatus status   = new ConnectionStatus();
+    private static final String SOCKS_LISTEN_HOST = "127.0.0.1";
+    private static final int    SOCKS_LISTEN_PORT = 10808;
+
+    private final ObjectMapper   objectMapper = new ObjectMapper();
+    private final ConnectionStatus status     = new ConnectionStatus();
     private final AtomicBoolean proxySystemActive = new AtomicBoolean(false);
 
     private Process xrayProcess;
-    private String  currentMode = "proxy"; // "proxy" | "vpn"
+    private String  currentMode = "proxy";
 
-    private final String CONFIG_DIR = System.getProperty("user.home") + "/.xray-manager";
-
-    // ── Saved previous system-proxy so we can restore it ─────────────────────
-    private String savedProxyMode    = null;  // "none" / "manual" / "auto"
-    private String savedSocksHost    = null;
-    private int    savedSocksPort    = 0;
-    private String savedHttpHost     = null;
-    private int    savedHttpPort     = 0;
-    private boolean savedProxyCaptured = false;
+    private final String CONFIG_DIR  = System.getProperty("user.home") + "/.xray-manager";
+    private final String BACKUP_FILE = CONFIG_DIR + "/proxy-backup.properties";
 
     private static final List<String> XRAY_CANDIDATES = List.of(
         "/usr/local/bin/xray",
@@ -62,16 +61,15 @@ public class XrayCoreService {
         new File(CONFIG_DIR).mkdirs();
     }
 
-    // ── Xray binary resolution ────────────────────────────────────────────────
+    // ── Xray binary ───────────────────────────────────────────────────────────
 
     public String resolveXrayPath() {
         for (String p : XRAY_CANDIDATES) {
             if (new File(p).canExecute()) return p;
         }
         try {
-            Process which = new ProcessBuilder("which", "xray")
-                .redirectErrorStream(true).start();
-            String out = new String(which.getInputStream().readAllBytes()).trim();
+            Process w = new ProcessBuilder("which", "xray").redirectErrorStream(true).start();
+            String out = new String(w.getInputStream().readAllBytes()).trim();
             if (!out.isEmpty() && new File(out).canExecute()) return out;
         } catch (IOException ignored) {}
         return null;
@@ -87,16 +85,13 @@ public class XrayCoreService {
 
     // ── Start proxy (PROXY mode) ──────────────────────────────────────────────
 
-    /**
-     * Start Xray: SOCKS5 inbound on 127.0.0.1:10808, outbound to remote server.
-     * Also sets the system proxy automatically.
-     */
     public boolean startProxy(ProxyConfig config) throws Exception {
         String xrayPath = resolveXrayPath();
         if (xrayPath == null) throw new Exception("Xray is not installed. Use the Install button.");
 
-        if (config.getLocalPort()    == null) config.setLocalPort(10808);
-        if (config.getLocalAddress() == null) config.setLocalAddress("127.0.0.1");
+        // Always listen locally — never expose proxy on remote interface
+        config.setLocalPort(SOCKS_LISTEN_PORT);
+        config.setLocalAddress(SOCKS_LISTEN_HOST);
 
         currentMode = "proxy";
 
@@ -104,10 +99,7 @@ public class XrayCoreService {
         String configPath = CONFIG_DIR + "/" + configId + ".json";
 
         FileUtils.writeStringToFile(
-            new File(configPath),
-            generateXrayConfig(config),
-            StandardCharsets.UTF_8
-        );
+            new File(configPath), generateXrayConfig(config), StandardCharsets.UTF_8);
 
         stopXrayProcess();
 
@@ -125,9 +117,9 @@ public class XrayCoreService {
         status.setProtocol(config.getProtocol());
         status.setServerAddress(config.getAddress() + ":" + config.getPort());
 
-        // Set system proxy → socks5://127.0.0.1:10808
+        // Save previous proxy THEN set ours — always 127.0.0.1:10808
         saveCurrentSystemProxy();
-        setSystemProxySocks(config.getLocalAddress(), config.getLocalPort());
+        setSystemProxySocks(SOCKS_LISTEN_HOST, SOCKS_LISTEN_PORT);
 
         return true;
     }
@@ -136,15 +128,8 @@ public class XrayCoreService {
 
     public boolean stopProxy() throws Exception {
         stopXrayProcess();
-
-        if ("vpn".equals(currentMode)) {
-            teardownTun();
-        }
-
-        if (proxySystemActive.get()) {
-            restoreSystemProxy();
-        }
-
+        if ("vpn".equals(currentMode)) teardownTun();
+        if (proxySystemActive.get())   restoreSystemProxy();
         status.setConnected(false);
         status.setProtocol(null);
         status.setServerAddress(null);
@@ -166,46 +151,28 @@ public class XrayCoreService {
         }
     }
 
-    // ── VPN mode (TUN) ────────────────────────────────────────────────────────
+    // ── VPN / TUN mode ────────────────────────────────────────────────────────
 
-    /**
-     * Enable VPN mode: create tun0, route all traffic through it via xray tun.
-     * sudoPassword is passed to sudo via stdin (askpass-style: we write it to
-     * a temp script to avoid it appearing in process args).
-     */
     public boolean enableVpnTun(ProxyConfig config, String sudoPassword) throws Exception {
         String xrayPath = resolveXrayPath();
         if (xrayPath == null) throw new Exception("Xray is not installed.");
 
         currentMode = "vpn";
 
-        // Build xray config with tun inbound
         String configPath = CONFIG_DIR + "/vpn_tun.json";
         FileUtils.writeStringToFile(
-            new File(configPath),
-            generateTunXrayConfig(config),
-            StandardCharsets.UTF_8
-        );
+            new File(configPath), generateTunXrayConfig(config), StandardCharsets.UTF_8);
 
-        // Create tun0 interface with sudo
-        runWithSudo(sudoPassword, "ip", "tuntap", "add", "tun0", "mode", "tun");
-        runWithSudo(sudoPassword, "ip", "addr",   "add", "10.0.0.1/24", "dev", "tun0");
-        runWithSudo(sudoPassword, "ip", "link",   "set", "tun0", "up");
+        runWithSudo(sudoPassword, "ip", "tuntap", "add",  "tun0",        "mode", "tun");
+        runWithSudo(sudoPassword, "ip", "addr",   "add",  "10.0.0.1/24", "dev",  "tun0");
+        runWithSudo(sudoPassword, "ip", "link",   "set",  "tun0",        "up");
+        runWithSudo(sudoPassword, "ip", "route",  "add",  "0.0.0.0/1",   "dev",  "tun0");
+        runWithSudo(sudoPassword, "ip", "route",  "add",  "128.0.0.0/1", "dev",  "tun0");
 
-        // Default route through tun0 (split into two /1 routes to not break the
-        // route to the VPN server itself)
-        runWithSudo(sudoPassword, "ip", "route",  "add", "0.0.0.0/1",   "dev", "tun0");
-        runWithSudo(sudoPassword, "ip", "route",  "add", "128.0.0.0/1", "dev", "tun0");
-
-        // Start xray with tun config
         stopXrayProcess();
-        ProcessBuilder pb = new ProcessBuilder(xrayPath, "run", "-config", configPath);
-        pb.redirectErrorStream(true);
-        // xray needs CAP_NET_ADMIN for TUN; run via sudo
-        pb = new ProcessBuilder("sudo", "-S", xrayPath, "run", "-config", configPath);
+        ProcessBuilder pb = new ProcessBuilder("sudo", "-S", xrayPath, "run", "-config", configPath);
         pb.redirectErrorStream(true);
         xrayProcess = pb.start();
-        // feed password to sudo stdin
         xrayProcess.getOutputStream().write((sudoPassword + "\n").getBytes(StandardCharsets.UTF_8));
         xrayProcess.getOutputStream().flush();
 
@@ -223,101 +190,194 @@ public class XrayCoreService {
     }
 
     private void teardownTun() {
-        try {
-            runCmd("sudo", "ip", "route", "del", "0.0.0.0/1",   "dev", "tun0");
-        } catch (Exception ignored) {}
-        try {
-            runCmd("sudo", "ip", "route", "del", "128.0.0.0/1", "dev", "tun0");
-        } catch (Exception ignored) {}
-        try {
-            runCmd("sudo", "ip", "link", "set", "tun0", "down");
-        } catch (Exception ignored) {}
-        try {
-            runCmd("sudo", "ip", "tuntap", "delete", "tun0", "mode", "tun");
-        } catch (Exception ignored) {}
+        for (String[] cmd : new String[][]{
+            {"sudo","ip","route","del","0.0.0.0/1","dev","tun0"},
+            {"sudo","ip","route","del","128.0.0.0/1","dev","tun0"},
+            {"sudo","ip","link","set","tun0","down"},
+            {"sudo","ip","tuntap","delete","tun0","mode","tun"}
+        }) { try { runCmd(cmd); } catch (Exception ignored) {} }
     }
 
-    private void teardownTun(String sudoPassword) {
-        try { runWithSudo(sudoPassword, "ip", "route", "del", "0.0.0.0/1",   "dev", "tun0"); } catch (Exception ignored) {}
-        try { runWithSudo(sudoPassword, "ip", "route", "del", "128.0.0.0/1", "dev", "tun0"); } catch (Exception ignored) {}
-        try { runWithSudo(sudoPassword, "ip", "link",  "set", "tun0", "down"); }             catch (Exception ignored) {}
-        try { runWithSudo(sudoPassword, "ip", "tuntap","delete", "tun0", "mode", "tun"); }   catch (Exception ignored) {}
+    private void teardownTun(String pw) {
+        for (String[] cmd : new String[][]{
+            {"ip","route","del","0.0.0.0/1","dev","tun0"},
+            {"ip","route","del","128.0.0.0/1","dev","tun0"},
+            {"ip","link","set","tun0","down"},
+            {"ip","tuntap","delete","tun0","mode","tun"}
+        }) { try { runWithSudo(pw, cmd); } catch (Exception ignored) {} }
+    }
+
+    // ── DBUS helper ───────────────────────────────────────────────────────────
+
+    /**
+     * Find the DBUS_SESSION_BUS_ADDRESS for the current user so gsettings works
+     * even when called from a systemd service (which has no session bus by default).
+     *
+     * Strategy:
+     *  1. If env var is already set (interactive session) → use it.
+     *  2. Look for /run/user/<uid>/bus (systemd user bus, available on Ubuntu 20+).
+     *  3. Scan /proc for a running gnome-shell / dbus-daemon process owned by this
+     *     user and read its DBUS_SESSION_BUS_ADDRESS from /proc/<pid>/environ.
+     */
+    private String resolveDbus() {
+        // 1. Already set in environment
+        String env = System.getenv("DBUS_SESSION_BUS_ADDRESS");
+        if (env != null && !env.isBlank()) return env;
+
+        // 2. systemd user bus socket
+        String uid = String.valueOf(ProcessHandle.current().pid()); // not uid, but try path
+        try {
+            // get real UID
+            Process p = new ProcessBuilder("id", "-u").redirectErrorStream(true).start();
+            uid = new String(p.getInputStream().readAllBytes()).trim();
+            p.waitFor(3, TimeUnit.SECONDS);
+        } catch (Exception ignored) {}
+        File userBus = new File("/run/user/" + uid + "/bus");
+        if (userBus.exists()) return "unix:path=/run/user/" + uid + "/bus";
+
+        // 3. Scan /proc for gnome-session / gnome-shell process owned by current user
+        File proc = new File("/proc");
+        File[] pids = proc.listFiles(f -> f.isDirectory() && f.getName().matches("\\d+"));
+        if (pids != null) {
+            String currentUser = System.getProperty("user.name");
+            for (File pid : pids) {
+                File envFile = new File(pid, "environ");
+                if (!envFile.canRead()) continue;
+                try {
+                    // Only check processes owned by this user
+                    if (!Files.getOwner(pid.toPath()).getName().equals(currentUser)) continue;
+                    byte[] bytes = Files.readAllBytes(envFile.toPath());
+                    String[] vars = new String(bytes, StandardCharsets.UTF_8).split("\0");
+                    for (String var : vars) {
+                        if (var.startsWith("DBUS_SESSION_BUS_ADDRESS=")) {
+                            return var.substring("DBUS_SESSION_BUS_ADDRESS=".length());
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+        return null;
     }
 
     // ── System proxy persistence ──────────────────────────────────────────────
 
     /**
-     * Read and remember current system proxy settings (GNOME gsettings or KDE).
-     * Called once before we overwrite them.
+     * Read current gsettings proxy and save to disk.
+     * Disk-based backup survives service restarts.
+     * Guard: if backup file already exists and proxy is already ours → skip.
      */
     private void saveCurrentSystemProxy() {
-        if (savedProxyCaptured) return; // already saved — don't overwrite with our own values
+        // If backup file exists, a previous session set the proxy and didn't clean up.
+        // Don't overwrite it — it still points to the user's original settings.
+        if (new File(BACKUP_FILE).exists()) {
+            LOG.info("Proxy backup already exists on disk — skipping save.");
+            proxySystemActive.set(true);
+            return;
+        }
         try {
-            savedProxyMode = gsettingsGet("org.gnome.system.proxy", "mode").trim().replace("'", "");
-            savedSocksHost = gsettingsGet("org.gnome.system.proxy.socks", "host").trim().replace("'", "");
-            String sp      = gsettingsGet("org.gnome.system.proxy.socks", "port").trim();
-            savedSocksPort = sp.isEmpty() ? 0 : Integer.parseInt(sp);
-            savedHttpHost  = gsettingsGet("org.gnome.system.proxy.http", "host").trim().replace("'", "");
-            String hp      = gsettingsGet("org.gnome.system.proxy.http", "port").trim();
-            savedHttpPort  = hp.isEmpty() ? 0 : Integer.parseInt(hp);
-            savedProxyCaptured = true;
-            LOG.info("Saved system proxy: mode=" + savedProxyMode
-                + " socks=" + savedSocksHost + ":" + savedSocksPort
-                + " http=" + savedHttpHost + ":" + savedHttpPort);
+            String mode  = gsettingsGet("org.gnome.system.proxy",       "mode").replace("'","").trim();
+            String sHost = gsettingsGet("org.gnome.system.proxy.socks", "host").replace("'","").trim();
+            String sPort = gsettingsGet("org.gnome.system.proxy.socks", "port").trim();
+            String hHost = gsettingsGet("org.gnome.system.proxy.http",  "host").replace("'","").trim();
+            String hPort = gsettingsGet("org.gnome.system.proxy.http",  "port").trim();
+            String hHost2= gsettingsGet("org.gnome.system.proxy.https", "host").replace("'","").trim();
+            String hPort2= gsettingsGet("org.gnome.system.proxy.https", "port").trim();
+
+            Properties props = new Properties();
+            props.setProperty("mode",       mode.isEmpty()  ? "none" : mode);
+            props.setProperty("socks.host", sHost);
+            props.setProperty("socks.port", sPort.isEmpty() ? "0"    : sPort);
+            props.setProperty("http.host",  hHost);
+            props.setProperty("http.port",  hPort.isEmpty() ? "0"    : hPort);
+            props.setProperty("https.host", hHost2);
+            props.setProperty("https.port", hPort2.isEmpty()? "0"    : hPort2);
+
+            try (FileOutputStream fos = new FileOutputStream(BACKUP_FILE)) {
+                props.store(fos, "xray-manager proxy backup");
+            }
+            LOG.info("Proxy backup saved: mode=" + mode
+                + " socks=" + sHost + ":" + sPort);
         } catch (Exception e) {
-            LOG.warning("Could not read current system proxy: " + e.getMessage());
+            LOG.warning("Could not save proxy backup: " + e.getMessage());
         }
     }
 
+    /**
+     * Set system SOCKS5 proxy to 127.0.0.1:10808.
+     * Always uses the constant — never the remote server address.
+     */
     private void setSystemProxySocks(String host, int port) {
         try {
-            gsettingsSet("org.gnome.system.proxy",       "mode",  "manual");
-            gsettingsSet("org.gnome.system.proxy.socks", "host",  host);
-            gsettingsSet("org.gnome.system.proxy.socks", "port",  String.valueOf(port));
+            gsettingsSet("org.gnome.system.proxy",       "mode", "manual");
+            gsettingsSet("org.gnome.system.proxy.socks", "host", host);
+            gsettingsSet("org.gnome.system.proxy.socks", "port", String.valueOf(port));
+            // Clear http/https so they don't interfere
+            gsettingsSet("org.gnome.system.proxy.http",  "host", "");
+            gsettingsSet("org.gnome.system.proxy.http",  "port", "0");
+            gsettingsSet("org.gnome.system.proxy.https", "host", "");
+            gsettingsSet("org.gnome.system.proxy.https", "port", "0");
             proxySystemActive.set(true);
-            LOG.info("System proxy set to socks5://" + host + ":" + port);
+            LOG.info("System proxy set → socks5://" + host + ":" + port);
         } catch (Exception e) {
             LOG.warning("Could not set system proxy: " + e.getMessage());
         }
     }
 
     /**
-     * Restore system proxy to whatever it was before we changed it.
-     * Handles the case where it was http://1.1.1.1:80 or anything else.
+     * Restore the proxy settings from the on-disk backup.
      */
     public void restoreSystemProxy() {
-        if (!savedProxyCaptured) {
-            // Nothing was saved — just disable proxy
-            try { gsettingsSet("org.gnome.system.proxy", "mode", "none"); } catch (Exception ignored) {}
-            proxySystemActive.set(false);
+        proxySystemActive.set(false);
+        File backup = new File(BACKUP_FILE);
+        if (!backup.exists()) {
+            try { gsettingsSet("org.gnome.system.proxy", "mode", "none"); }
+            catch (Exception ignored) {}
             return;
         }
         try {
-            String mode = (savedProxyMode == null || savedProxyMode.isEmpty()) ? "none" : savedProxyMode;
-            gsettingsSet("org.gnome.system.proxy", "mode", mode);
+            Properties props = new Properties();
+            try (FileInputStream fis = new FileInputStream(backup)) {
+                props.load(fis);
+            }
+            String mode  = props.getProperty("mode",       "none");
+            String sHost = props.getProperty("socks.host", "");
+            String sPort = props.getProperty("socks.port", "0");
+            String hHost = props.getProperty("http.host",  "");
+            String hPort = props.getProperty("http.port",  "0");
+            String h2Host= props.getProperty("https.host", "");
+            String h2Port= props.getProperty("https.port", "0");
 
+            gsettingsSet("org.gnome.system.proxy", "mode", mode);
             if ("manual".equals(mode)) {
-                if (savedSocksHost != null && !savedSocksHost.isEmpty()) {
-                    gsettingsSet("org.gnome.system.proxy.socks", "host", savedSocksHost);
-                    gsettingsSet("org.gnome.system.proxy.socks", "port", String.valueOf(savedSocksPort));
+                if (!sHost.isEmpty()) {
+                    gsettingsSet("org.gnome.system.proxy.socks", "host", sHost);
+                    gsettingsSet("org.gnome.system.proxy.socks", "port", sPort);
                 }
-                if (savedHttpHost != null && !savedHttpHost.isEmpty()) {
-                    gsettingsSet("org.gnome.system.proxy.http", "host", savedHttpHost);
-                    gsettingsSet("org.gnome.system.proxy.http", "port", String.valueOf(savedHttpPort));
+                if (!hHost.isEmpty()) {
+                    gsettingsSet("org.gnome.system.proxy.http", "host", hHost);
+                    gsettingsSet("org.gnome.system.proxy.http", "port", hPort);
+                }
+                if (!h2Host.isEmpty()) {
+                    gsettingsSet("org.gnome.system.proxy.https", "host", h2Host);
+                    gsettingsSet("org.gnome.system.proxy.https", "port", h2Port);
                 }
             }
-
-            proxySystemActive.set(false);
-            savedProxyCaptured = false; // allow re-capture next time
-            LOG.info("System proxy restored to: mode=" + mode);
+            // Delete backup so next connect can save fresh values
+            backup.delete();
+            LOG.info("System proxy restored: mode=" + mode
+                + " socks=" + sHost + ":" + sPort);
         } catch (Exception e) {
-            LOG.warning("Could not restore system proxy: " + e.getMessage());
+            LOG.warning("Could not restore proxy: " + e.getMessage());
         }
     }
+
+    // ── gsettings wrappers ────────────────────────────────────────────────────
 
     private String gsettingsGet(String schema, String key) throws Exception {
         ProcessBuilder pb = new ProcessBuilder("gsettings", "get", schema, key);
         pb.redirectErrorStream(true);
+        String dbus = resolveDbus();
+        if (dbus != null) pb.environment().put("DBUS_SESSION_BUS_ADDRESS", dbus);
         Process p = pb.start();
         String out = new String(p.getInputStream().readAllBytes()).trim();
         p.waitFor(3, TimeUnit.SECONDS);
@@ -325,19 +385,26 @@ public class XrayCoreService {
     }
 
     private void gsettingsSet(String schema, String key, String value) throws Exception {
-        runCmd("gsettings", "set", schema, key, value);
+        ProcessBuilder pb = new ProcessBuilder("gsettings", "set", schema, key, value);
+        pb.redirectErrorStream(true);
+        String dbus = resolveDbus();
+        if (dbus != null) pb.environment().put("DBUS_SESSION_BUS_ADDRESS", dbus);
+        Process p = pb.start();
+        String out = new String(p.getInputStream().readAllBytes()).trim();
+        if (p.waitFor(5, TimeUnit.SECONDS) && p.exitValue() != 0)
+            throw new Exception("gsettings set failed: " + out);
     }
 
-    // ── setupVpn (legacy API kept for VpnController) ─────────────────────────
+    // ── Legacy API (VpnController) ────────────────────────────────────────────
 
     public boolean setupVpn(VpnConfig vpnConfig) throws Exception {
         if (Boolean.TRUE.equals(vpnConfig.getEnabled())) {
-            setSystemProxySocks("127.0.0.1", 10808);
-            return true;
+            saveCurrentSystemProxy();
+            setSystemProxySocks(SOCKS_LISTEN_HOST, SOCKS_LISTEN_PORT);
         } else {
             restoreSystemProxy();
-            return true;
         }
+        return true;
     }
 
     // ── Status ────────────────────────────────────────────────────────────────
@@ -354,6 +421,8 @@ public class XrayCoreService {
         return status;
     }
 
+    public String getCurrentMode() { return currentMode; }
+
     // ── Install Xray ──────────────────────────────────────────────────────────
 
     public void installXray() throws Exception {
@@ -368,14 +437,13 @@ public class XrayCoreService {
             throw new Exception("Install succeeded but xray not found. Add " + dir + " to PATH.");
     }
 
-    // ── Ping helpers ──────────────────────────────────────────────────────────
+    // ── Ping ──────────────────────────────────────────────────────────────────
 
     public Long httpPing(String targetUrl, int timeoutMs, boolean useProxy) throws Exception {
         java.net.Proxy proxy = useProxy
             ? new java.net.Proxy(java.net.Proxy.Type.SOCKS,
-                new java.net.InetSocketAddress("127.0.0.1", 10808))
+                new java.net.InetSocketAddress(SOCKS_LISTEN_HOST, SOCKS_LISTEN_PORT))
             : java.net.Proxy.NO_PROXY;
-
         @SuppressWarnings("deprecation")
         java.net.URL url = new java.net.URL(targetUrl);
         java.net.HttpURLConnection conn =
@@ -385,12 +453,8 @@ public class XrayCoreService {
         conn.setRequestMethod("HEAD");
         conn.setRequestProperty("User-Agent", "v2ray-ubuntu/1.0");
         long start = System.currentTimeMillis();
-        try {
-            conn.connect();
-            conn.getResponseCode();
-        } finally {
-            conn.disconnect();
-        }
+        try { conn.connect(); conn.getResponseCode(); }
+        finally { conn.disconnect(); }
         return System.currentTimeMillis() - start;
     }
 
@@ -400,7 +464,6 @@ public class XrayCoreService {
         StringBuilder errors = new StringBuilder();
         try { direct = httpPing(target, timeoutMs, false); }
         catch (Exception e) { errors.append("Direct: ").append(e.getMessage()); }
-
         if (xrayProcess != null && xrayProcess.isAlive()) {
             try { proxied = httpPing(target, timeoutMs, true); }
             catch (Exception e) {
@@ -419,13 +482,12 @@ public class XrayCoreService {
 
     // ── Xray config generation ────────────────────────────────────────────────
 
-    /** PROXY mode: SOCKS5 inbound → remote outbound */
     private String generateXrayConfig(ProxyConfig config) throws Exception {
         Map<String, Object> root = new HashMap<>();
         root.put("log", Map.of("loglevel", "warning"));
         root.put("inbounds", List.of(Map.of(
-            "port",     config.getLocalPort(),
-            "listen",   config.getLocalAddress(),
+            "port", SOCKS_LISTEN_PORT,
+            "listen", SOCKS_LISTEN_HOST,
             "protocol", "socks",
             "settings", Map.of("auth", "noauth", "udp", true)
         )));
@@ -433,27 +495,25 @@ public class XrayCoreService {
             Map.of("protocol", "freedom", "tag", "direct")));
         root.put("routing", Map.of(
             "domainStrategy", "AsIs",
-            "rules", List.of(Map.of("type","field","outboundTag","direct","domain",
-                List.of("geosite:cn")))
+            "rules", List.of(Map.of("type","field","outboundTag","direct",
+                "domain", List.of("geosite:cn")))
         ));
         return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
     }
 
-    /** VPN/TUN mode: tun inbound → remote outbound */
     private String generateTunXrayConfig(ProxyConfig config) throws Exception {
         Map<String, Object> root = new HashMap<>();
         root.put("log", Map.of("loglevel", "warning"));
         root.put("inbounds", List.of(Map.of(
             "protocol", "dokodemo-door",
-            "port",     10808,
-            "listen",   "0.0.0.0",
+            "port", SOCKS_LISTEN_PORT,
+            "listen", "0.0.0.0",
             "settings", Map.of("network", "tcp,udp", "followRedirect", true),
             "streamSettings", Map.of("sockopt", Map.of("tproxy", "tproxy"))
         )));
         root.put("outbounds", List.of(buildOutbound(config),
             Map.of("protocol", "freedom", "tag", "direct")));
-        root.put("routing", Map.of("domainStrategy", "IPIfNonMatch",
-            "rules", List.of()));
+        root.put("routing", Map.of("domainStrategy", "IPIfNonMatch", "rules", List.of()));
         return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
     }
 
@@ -461,7 +521,6 @@ public class XrayCoreService {
         Map<String, Object> outbound = new HashMap<>();
         outbound.put("protocol", config.getProtocol());
         outbound.put("tag", "proxy");
-
         String proto = config.getProtocol().toLowerCase();
         if (proto.equals("vless") || proto.equals("vmess")) {
             Map<String, Object> user = new HashMap<>();
@@ -492,7 +551,6 @@ public class XrayCoreService {
                 "port",    config.getPort()
             ))));
         }
-
         if (config.getNetwork() != null && !config.getNetwork().isEmpty()) {
             Map<String, Object> stream = new HashMap<>();
             stream.put("network", config.getNetwork());
@@ -520,18 +578,13 @@ public class XrayCoreService {
         pb.redirectErrorStream(true);
         Process p = pb.start();
         String out = new String(p.getInputStream().readAllBytes());
-        if (p.waitFor(10, TimeUnit.SECONDS) && p.exitValue() != 0)
+        if (p.waitFor(15, TimeUnit.SECONDS) && p.exitValue() != 0)
             throw new Exception("Command failed: " + out.trim());
     }
 
-    /**
-     * Run a command with sudo, feeding password via stdin.
-     * Uses "sudo -S" so the password goes on stdin, never in the process args.
-     */
     private void runWithSudo(String password, String... cmd) throws Exception {
         String[] full = new String[cmd.length + 2];
-        full[0] = "sudo";
-        full[1] = "-S";
+        full[0] = "sudo"; full[1] = "-S";
         System.arraycopy(cmd, 0, full, 2, cmd.length);
         ProcessBuilder pb = new ProcessBuilder(full);
         pb.redirectErrorStream(true);
@@ -541,8 +594,6 @@ public class XrayCoreService {
         p.getOutputStream().close();
         String out = new String(p.getInputStream().readAllBytes());
         if (!p.waitFor(10, TimeUnit.SECONDS) || p.exitValue() != 0)
-            throw new Exception("sudo command failed: " + out.trim());
+            throw new Exception("sudo failed: " + out.trim());
     }
-
-    public String getCurrentMode() { return currentMode; }
 }

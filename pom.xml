@@ -14,7 +14,7 @@
 
     <groupId>com.xraymanager</groupId>
     <artifactId>v2ray-ubuntu</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
     <name>v2ray-ubuntu</name>
     <description>Xray/V2Ray manager — VPN, Proxy, and Per-App Proxy modes</description>
     <packaging>jar</packaging>

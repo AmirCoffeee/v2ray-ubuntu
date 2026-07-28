@@ -8,7 +8,7 @@ set -e
 # ─────────────────────────────────────────────────────────────────────────────
 
 REPO="AmirCoffeee/v2ray-ubuntu"
-VERSION="1.0.1"
+VERSION="1.0.2"
 JAR_URL="https://github.com/${REPO}/releases/download/v${VERSION}/v2ray-ubuntu-${VERSION}.jar"
 INSTALL_DIR="/opt/v2ray-ubuntu"
 JAR_PATH="${INSTALL_DIR}/v2ray-ubuntu.jar"
@@ -159,22 +159,24 @@ $SUDO chmod +x "${JAR_PATH}"
 # ── 3. Systemd service ────────────────────────────────────────────────────────
 section "Creating systemd service"
 
-# Determine exec: headless server → just java; desktop → javafx gui mode flag
-if [ "$DESKTOP_ENV" = "none" ]; then
-    EXEC_START="/usr/bin/java -jar ${JAR_PATH} --headless"
-else
-    EXEC_START="/usr/bin/java -jar ${JAR_PATH}"
+# Resolve user's DBUS session bus address for gsettings to work from systemd
+DBUS_ADDR=""
+USER_UID=$(id -u 2>/dev/null || echo "")
+if [ -n "$USER_UID" ] && [ -S "/run/user/${USER_UID}/bus" ]; then
+    DBUS_ADDR="unix:path=/run/user/${USER_UID}/bus"
+elif [ -n "$DBUS_SESSION_BUS_ADDRESS" ]; then
+    DBUS_ADDR="$DBUS_SESSION_BUS_ADDRESS"
 fi
 
 $SUDO tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null <<EOF
 [Unit]
 Description=v2ray-ubuntu — Xray-core manager (port ${PORT})
-After=network.target
+After=network.target graphical-session.target
 
 [Service]
 Type=simple
 User=${USER}
-ExecStart=${EXEC_START}
+ExecStart=/usr/bin/java -jar ${JAR_PATH}
 Restart=on-failure
 RestartSec=5
 WorkingDirectory=${INSTALL_DIR}
@@ -182,6 +184,9 @@ StandardOutput=journal
 StandardError=journal
 Environment="DISPLAY=:0"
 Environment="XAUTHORITY=${HOME}/.Xauthority"
+Environment="DBUS_SESSION_BUS_ADDRESS=${DBUS_ADDR}"
+Environment="HOME=${HOME}"
+Environment="XDG_RUNTIME_DIR=/run/user/${USER_UID:-1000}"
 
 [Install]
 WantedBy=multi-user.target
@@ -216,43 +221,6 @@ SCRIPT
 
 $SUDO chmod +x /usr/local/bin/v2ray-ubuntu
 info "CLI launcher: v2ray-ubuntu {start|stop|restart|status|log|open}"
-
-# ── 5. Desktop shortcut (only if GUI available) ───────────────────────────────
-if [ "$HAS_DISPLAY" = true ] && [ "$DESKTOP_ENV" != "none" ]; then
-    section "Creating desktop shortcut & application entry"
-
-    DESKTOP_FILE="${HOME}/.local/share/applications/v2ray-ubuntu.desktop"
-    mkdir -p "${HOME}/.local/share/applications"
-
-    # The Exec opens the web panel; if JavaFX tray is running it will bring up window
-    cat > "${DESKTOP_FILE}" <<DEOF
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=v2ray-ubuntu
-GenericName=VPN & Proxy Manager
-Comment=Xray-core based VPN and Proxy manager
-Exec=bash -c 'systemctl --user is-active v2ray-ubuntu 2>/dev/null || sudo systemctl start v2ray-ubuntu; sleep 1; xdg-open http://localhost:${PORT}'
-Icon=network-vpn
-Terminal=false
-StartupNotify=true
-Categories=Network;Security;
-Keywords=vpn;proxy;xray;v2ray;vless;vmess;
-DEOF
-
-    chmod +x "${DESKTOP_FILE}"
-
-    # Also update desktop db if available
-    if command -v update-desktop-database &>/dev/null; then
-        update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
-    fi
-
-    info "Desktop shortcut created at ${DESKTOP_FILE}"
-    info "Find it in your app launcher as 'v2ray-ubuntu'"
-else
-    section "Server mode — skipping desktop shortcut"
-    info "Access the web panel at: http://<your-ip>:${PORT}"
-fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
