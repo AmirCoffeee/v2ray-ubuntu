@@ -123,6 +123,20 @@ java -jar target/v2ray-ubuntu-1.0.2.jar
 
 ---
 
+## First time setup
+
+After connecting for the first time, the app sets your system proxy automatically via `gsettings`.  
+On some systems GNOME does not pick it up immediately. If your traffic is not going through the proxy:
+
+1. Open **Settings → Network → Proxy**
+2. Make sure the toggle at the top is **ON**
+3. Set **Configuration** to **Manual**
+4. Confirm **SOCKS Host** is `127.0.0.1` and port is `10808`
+
+If it still shows the wrong values, click Disconnect in the app and Connect again — the app will re-apply the settings.
+
+---
+
 ## Uninstall
 
 ```bash
