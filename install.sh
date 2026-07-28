@@ -4,7 +4,7 @@ set -e
 # ─────────────────────────────────────────────────────────────────────────────
 #  v2ray-ubuntu installer  (port 12345)
 #  Usage:  bash install.sh
-#  One-line: bash <(curl -fsSL https://raw.githubusercontent.com/AmirCoffeee/v2ray-ubuntu/main/install.sh)
+#  One-line: bash <(curl -fsSL https://raw.githubusercontent.com/AmirCoffeee/v2ray-ubuntu/master/install.sh)
 # ─────────────────────────────────────────────────────────────────────────────
 
 REPO="AmirCoffeee/v2ray-ubuntu"
