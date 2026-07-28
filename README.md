@@ -123,6 +123,27 @@ java -jar target/v2ray-ubuntu-1.0.2.jar
 
 ---
 
+## Uninstall
+
+```bash
+# Stop and disable the service
+sudo systemctl stop v2ray-ubuntu
+sudo systemctl disable v2ray-ubuntu
+sudo rm /etc/systemd/system/v2ray-ubuntu.service
+sudo systemctl daemon-reload
+
+# Remove app files
+sudo rm -rf /opt/v2ray-ubuntu
+
+# Remove CLI command
+sudo rm -f /usr/local/bin/v2ray-ubuntu
+
+# Remove config/cache files
+rm -rf ~/.xray-manager
+```
+
+---
+
 ## License
 
 MIT
